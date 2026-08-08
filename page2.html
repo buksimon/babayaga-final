@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>BABAYAGA — Range Analysis</title>
+<style>
+  :root{
+    --bg:#000000;
+    --amber:#ff9d2e;
+    --amber-dim:#7a4408;
+    --grey-dim:#2c2c2c;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{ min-height:100%; background:var(--bg); font-family:'Segoe UI',system-ui,-apple-system,sans-serif; }
+  body{ display:flex; justify-content:center; align-items:flex-start; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  .screen{ width:100%; max-width:420px; min-height:100vh; padding:10px 14px 68px; display:flex; flex-direction:column; align-items:center; position:relative; }
+  .screen::before{ content:""; position:absolute; inset:0; background:radial-gradient(circle at 50% 12%, rgba(255,157,46,0.08) 0%, rgba(255,157,46,0) 55%); pointer-events:none; }
+
+  .top-row{ width:100%; display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; z-index:1; }
+  .back-btn{ width:25px; height:25px; border-radius:7px; border:1.5px solid var(--grey-dim); display:flex; align-items:center; justify-content:center; color:#ccc; font-size:13px; background:none; cursor:pointer; }
+  .page-pill{ font-size:8.5px; letter-spacing:1.3px; color:var(--amber); border-bottom:1px solid var(--amber-dim); padding-bottom:2px; }
+
+  .brand{ font-size:15px; font-weight:800; letter-spacing:3px; color:#eaeaea; z-index:1; margin-top:2px; }
+  .range-title{ font-size:10.5px; letter-spacing:1.8px; color:var(--amber); margin:3px 0 8px; display:flex; align-items:center; gap:7px; z-index:1; }
+  .range-title::before, .range-title::after{ content:"\25CE"; font-size:9.5px; opacity:0.8; }
+
+  .box{ width:100%; border-radius:10px; border:1.5px solid var(--grey-dim); padding:8px; margin-bottom:7px; z-index:1; }
+  .box-title{ font-size:9.5px; letter-spacing:1.1px; font-weight:700; margin-bottom:6px; color:var(--amber); display:flex; align-items:center; gap:6px; }
+
+  .upload-status-line{ display:flex; align-items:center; justify-content:space-between; background:#0a0a0a; border-radius:7px; padding:6px 8px; margin-bottom:4px; }
+  .upload-status-line:last-child{ margin-bottom:0; }
+  .us-name{ font-size:9.5px; color:#ccc; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:60%; }
+  .us-badge{ font-size:9px; font-weight:700; color:var(--amber); display:flex; align-items:center; gap:4px; }
+
+  .extract-box{ text-align:left; }
+  .extract-row{ display:flex; align-items:center; gap:9px; margin-bottom:6px; }
+  .radar{ width:36px; height:36px; border-radius:50%; border:2px solid rgba(255,157,46,0.25); position:relative; flex-shrink:0; }
+  .radar::after{ content:""; position:absolute; inset:-2px; border-radius:50%; border-top:2px solid var(--amber); animation:spin 1.4s linear infinite; }
+  @keyframes spin{ from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
+  .extract-text{ font-size:9.5px; color:#ccc; line-height:1.35; }
+  .extract-text b{ color:var(--amber); }
+
+  .stage-grid{ display:flex; flex-wrap:wrap; gap:4px 7px; margin-top:3px; }
+  .stage{ display:flex; align-items:center; gap:4px; font-size:8px; color:#777; }
+  .stage-dot{ width:6px; height:6px; border-radius:50%; background:#333; flex-shrink:0; }
+  .stage.done .stage-dot{ background:var(--amber); box-shadow:0 0 5px var(--amber); }
+  .stage.done{ color:#ccc; }
+  .stage.active .stage-dot{ background:var(--amber); animation:pulse 1s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{opacity:0.4;} 50%{opacity:1;} }
+
+  .raw-json{ background:#0a0a0a; border-radius:7px; padding:8px; font-size:8.5px; line-height:1.4; color:#e0c08a; max-height:220px; overflow-y:auto; white-space:pre-wrap; word-break:break-word; margin-bottom:7px; font-family:'Courier New',monospace; }
+  .download-btn{ width:100%; padding:8px; border-radius:8px; background:transparent; border:1.5px solid #444; color:#666; font-size:9.5px; font-weight:700; letter-spacing:0.8px; cursor:not-allowed; }
+  .download-btn.enabled{ border-color:var(--amber-dim); color:var(--amber); cursor:pointer; }
+
+  .proceed-btn{ width:100%; padding:10px; border-radius:9px; z-index:1; background:transparent; border:1.5px solid #444; color:#666; font-size:11.5px; font-weight:800; letter-spacing:1.3px; cursor:not-allowed; display:flex; align-items:center; justify-content:center; gap:8px; transition:all .25s ease; }
+  .proceed-btn.enabled{ border-color:var(--amber); color:var(--amber); cursor:pointer; box-shadow:0 0 14px rgba(255,157,46,0.3); }
+
+  .bottom-nav{ position:fixed; bottom:0; left:0; right:0; background:#000; border-top:1px solid #1c1c1c; display:flex; justify-content:center; z-index:999; }
+  .bottom-nav-inner{ width:100%; max-width:420px; display:flex; justify-content:space-around; padding:7px 0 9px; }
+  .nav-item{ display:flex; flex-direction:column; align-items:center; gap:3px; font-size:8.5px; color:#666; letter-spacing:0.7px; cursor:pointer; background:none; border:none; font-family:inherit; }
+  .nav-item.active{ color:var(--amber); }
+  .nav-icon{ font-size:13px; }
+</style>
+</head>
+<body>
+<div class="screen">
+
+  <div class="top-row">
+    <button class="back-btn" onclick="history.back()">&#8592;</button>
+    <div class="page-pill">PAGE 2 OF 4</div>
+  </div>
+
+  <div class="brand">BABAYAGA</div>
+  <div class="range-title">RANGE ANALYSIS</div>
+
+  <div class="box" id="uploadStatusBox">
+    <div class="box-title">UPLOADED DOCUMENT</div>
+    <div id="uploadStatusLines"></div>
+  </div>
+
+  <div class="box extract-box">
+    <div class="box-title">DATA EXTRACTION IN PROGRESS</div>
+    <div class="extract-row">
+      <div class="radar" id="radar"></div>
+      <div class="extract-text" id="extractText">
+        <b>Parsing document...</b><br>Reading standings, form and head-to-head data.
+      </div>
+    </div>
+    <div class="stage-grid">
+      <div class="stage" id="stage1"><span class="stage-dot"></span>DOCUMENT PARSING</div>
+      <div class="stage" id="stage2"><span class="stage-dot"></span>STANDINGS EXTRACTION</div>
+      <div class="stage" id="stage3"><span class="stage-dot"></span>TEAM RATINGS</div>
+      <div class="stage" id="stage4"><span class="stage-dot"></span>MATCH PROJECTION</div>
+    </div>
+  </div>
+
+  <div class="box raw-box" id="rawBox">
+    <div class="box-title">MATCH PROJECTION REPORT</div>
+    <pre id="rawJson" class="raw-json">Waiting for extraction to complete...</pre>
+    <button class="download-btn" id="downloadBtn" disabled>&#8595; DOWNLOAD REPORT (.txt)</button>
+    <button class="download-btn" id="copyBtn" disabled style="margin-top:6px;">&#128203; COPY TO CLIPBOARD</button>
+  </div>
+
+  <div class="box raw-box">
+    <div class="box-title">TEAM RATINGS (debug)</div>
+    <pre id="rawRatingsText" class="raw-json" style="max-height:160px;">Waiting for parsing...</pre>
+  </div>
+
+  <button class="proceed-btn" id="proceedBtn" disabled>PROCEED TO PROCESSING &#8594;</button>
+
+</div>
+
+<div class="bottom-nav">
+  <div class="bottom-nav-inner">
+    <button class="nav-item" onclick="goTo('page1.html')"><span class="nav-icon">&#8962;</span>HOME</button>
+    <button class="nav-item active" onclick="goTo('page2.html')"><span class="nav-icon">&#8982;</span>RANGE</button>
+    <button class="nav-item" onclick="goTo('page3.html')"><span class="nav-icon">&#9881;</span>PROCESSING</button>
+    <button class="nav-item" onclick="goTo('page4.html')"><span class="nav-icon">&#128202;</span>RESULTS</button>
+  </div>
+</div>
+
+<script>
+  function goTo(page){ window.location.href = page; }
+  window.goTo = goTo;
+
+  // ============================================================
+  // STATAREA WEBPAGE PARSER + POISSON ATTACK/DEFENSE ENGINE
+  //
+  // No odds/bookmaker input anywhere in this pipeline anymore. The single
+  // input is the Statarea "compare teams" document saved on page1 (as
+  // pasted or file-picked text, stored in IndexedDB under docs_statarea).
+  //
+  // Statarea's real markup uses stable, semantic class names rather than
+  // positional/text-token layout, so this parses the actual DOM (via
+  // DOMParser) instead of regex-scanning flattened text — confirmed
+  // against a real saved page:
+  //   .teamstandings .standingrow      -> one row per league team
+  //   .teamsstatistics .halfcontainer  -> one block per team, last-10 form
+  //   .facts .datarow                  -> H2H summary label/value pairs
+  //   <title>A vs B teams information...</title> -> home/away team names
+  //
+  // ENGINE: same Maher-style method validated earlier this session on
+  // the Uzbekistan Superliga sample (Pakhtakor vs FK Buxoro) — league
+  // averages from ALL teams' standings, per-team Atk/Def Home/Away
+  // ratings relative to league average, crossed to get this match's
+  // expected goals, then a full Poisson grid for Home/Draw/Away and
+  // Over/Under 1.5/2.5/3.5. A secondary form-based lambda (from last-10
+  // stats) is blended in at 40% weight as a stability cross-check —
+  // when the two estimates diverge sharply, that itself is a useful
+  // signal flagged in the report rather than hidden.
+  // ============================================================
+
+  const IDB_NAME = 'babayaga_db';
+  const IDB_STORE = 'kv';
+  function idbOpen(){
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = () => { req.result.createObjectStore(IDB_STORE); };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  async function idbGet(key){
+    const db = await idbOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const req = tx.objectStore(IDB_STORE).get(key);
+      req.onsuccess = () => resolve(req.result ?? null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  async function loadStatareaDoc(){
+    try{
+      const val = await idbGet('docs_statarea');
+      if(Array.isArray(val) && val.length > 0) return val[0];
+      return null;
+    } catch(e){
+      console.error('Failed to load Statarea document from IndexedDB:', e);
+      return null;
+    }
+  }
+
+  function renderUploadStatus(doc){
+    const container = document.getElementById('uploadStatusLines');
+    if(!doc){
+      container.innerHTML = `
+        <div class="upload-status-line">
+          <span class="us-name">Statarea Webpage</span>
+          <span class="us-badge" style="color:#ff5c5c">&#10007; NOT FOUND — upload on Home</span>
+        </div>`;
+      return;
+    }
+    container.innerHTML = `
+      <div class="upload-status-line">
+        <span class="us-name">${doc.name}</span>
+        <span class="us-badge">&#10003; ${doc.text.length.toLocaleString()} chars</span>
+      </div>`;
+  }
+
+  function updateProceed(unlocked){
+    const btn = document.getElementById('proceedBtn');
+    btn.disabled = !unlocked;
+    btn.classList.toggle('enabled', unlocked);
+  }
+  document.getElementById('proceedBtn').addEventListener('click', function(){
+    if(this.disabled) return;
+    window.location.href = 'page3.html';
+  });
+
+  // ============================================================
+  // DOM PARSING
+  // ============================================================
+
+  function parseTeamNames(doc){
+    const titleMatch = /^(.+?)\s+vs\s+(.+?)\s+teams information/i.exec(doc.querySelector('title')?.textContent || '');
+    if(titleMatch) return { home: titleMatch[1].trim(), away: titleMatch[2].trim() };
+    return { home: null, away: null };
+  }
+
+  function textOf(el, sel){
+    const found = el.querySelector(sel);
+    return found ? found.textContent.trim() : null;
+  }
+  function numOf(el, sel){
+    const t = textOf(el, sel);
+    if(t === null) return null;
+    const n = parseFloat(t.replace(/[^\d.\-]/g, ''));
+    return isNaN(n) ? null : n;
+  }
+
+  function parseStandings(doc){
+    const rows = doc.querySelectorAll('.teamstandings .standingrow');
+    const teams = [];
+    rows.forEach(row => {
+      const name = textOf(row, '.common .name a') || textOf(row, '.common .name');
+      if(!name) return;
+      const home = row.querySelector('.home');
+      const away = row.querySelector('.away');
+      const overall = row.querySelector('.overall');
+      teams.push({
+        name: name.trim(),
+        pos: numOf(row, '.common .pos'),
+        matches: numOf(row, '.common .matches'),
+        points: numOf(row, '.common2 .points'),
+        home_w: home ? numOf(home, '.wins') : null,
+        home_d: home ? numOf(home, '.draws') : null,
+        home_l: home ? numOf(home, '.loses') : null,
+        home_s: home ? numOf(home, '.goals.host') : null,
+        home_c: home ? numOf(home, '.goals.guest') : null,
+        away_w: away ? numOf(away, '.wins') : null,
+        away_d: away ? numOf(away, '.draws') : null,
+        away_l: away ? numOf(away, '.loses') : null,
+        away_s: away ? numOf(away, '.goals.host') : null,
+        away_c: away ? numOf(away, '.goals.guest') : null,
+      });
+    });
+    // home_m/away_m from w+d+l — more robust than trusting a separate field that doesn't exist per-split
+    teams.forEach(t => {
+      t.home_m = (t.home_w ?? 0) + (t.home_d ?? 0) + (t.home_l ?? 0);
+      t.away_m = (t.away_w ?? 0) + (t.away_d ?? 0) + (t.away_l ?? 0);
+    });
+    return teams;
+  }
+
+  function parseLastTenForm(doc, teamName){
+    const blocks = doc.querySelectorAll('.teamsstatistics .halfcontainer');
+    for(const block of blocks){
+      const name = textOf(block, '.caption .name');
+      if(!name) continue;
+      if(name.trim().toLowerCase() !== teamName.trim().toLowerCase()) continue;
+      const facts = {};
+      block.querySelectorAll('.data .factitem').forEach(fi => {
+        const label = textOf(fi, '.label');
+        const valueText = textOf(fi, '.value');
+        if(!label || valueText === null) return;
+        const num = parseFloat(valueText.replace(/[^\d.\-]/g, ''));
+        facts[label.trim()] = isNaN(num) ? valueText.trim() : num;
+      });
+      return facts;
+    }
+    return null;
+  }
+
+  function findFactValue(facts, substrings){
+    if(!facts) return null;
+    for(const key of Object.keys(facts)){
+      const lower = key.toLowerCase();
+      if(substrings.every(s => lower.includes(s))) return facts[key];
+    }
+    return null;
+  }
+
+  function parseH2H(doc){
+    const rows = doc.querySelectorAll('.facts .datarow');
+    const out = { totalMatches:null, homeWins:null, awayWins:null, draws:null, winLabelTeams:[] };
+    rows.forEach(row => {
+      const label = textOf(row, '.label');
+      const value = numOf(row, '.value');
+      if(!label || value === null) return;
+      const lower = label.toLowerCase();
+      if(lower.includes('all team matches')) out.totalMatches = value;
+      else if(lower.includes('draw')) out.draws = value;
+      else if(lower.includes('wins')) {
+        out.winLabelTeams.push(label.replace(/\s*wins\s*$/i, '').trim());
+        if(out.homeWins === null) out.homeWins = { label, value };
+        else out.awayWins = { label, value };
+      }
+    });
+    return out;
+  }
+
+  // ============================================================
+  // POISSON ATTACK/DEFENSE ENGINE
+  // ============================================================
+
+  function buildLeagueRatings(teams){
+    let totalHomeS = 0, totalHomeM = 0, totalAwayS = 0, totalAwayM = 0;
+    teams.forEach(t => {
+      totalHomeS += t.home_s || 0; totalHomeM += t.home_m || 0;
+      totalAwayS += t.away_s || 0; totalAwayM += t.away_m || 0;
+    });
+    const muHome = totalHomeM > 0 ? totalHomeS / totalHomeM : 1.3;
+    const muAway = totalAwayM > 0 ? totalAwayS / totalAwayM : 1.1;
+
+    const ratings = {};
+    teams.forEach(t => {
+      if(!t.home_m || !t.away_m) return; // skip teams with no data in one split
+      ratings[t.name] = {
+        atkHome: (t.home_s / t.home_m) / muHome,
+        defHome: (t.home_c / t.home_m) / muAway,
+        atkAway: (t.away_s / t.away_m) / muAway,
+        defAway: (t.away_c / t.away_m) / muHome,
+        homeM: t.home_m, awayM: t.away_m
+      };
+    });
+    return { ratings, muHome, muAway };
+  }
+
+  function matchLambdas(homeTeam, awayTeam, ratings, muHome, muAway){
+    const rh = ratings[homeTeam], ra = ratings[awayTeam];
+    if(!rh || !ra) return null;
+    return {
+      lamHome: muHome * rh.atkHome * ra.defAway,
+      lamAway: muAway * ra.atkAway * rh.defHome
+    };
+  }
+
+  function poissonPmf(k, lambda){
+    let logP = -lambda + k*Math.log(lambda) - lnFactorial(k);
+    return Math.exp(logP);
+  }
+  function lnFactorial(n){
+    let r = 0;
+    for(let i=2;i<=n;i++) r += Math.log(i);
+    return r;
+  }
+
+  function poissonProbs(lamHome, lamAway, maxG=10){
+    const ph = [], pa = [];
+    for(let i=0;i<=maxG;i++){ ph.push(poissonPmf(i,lamHome)); pa.push(poissonPmf(i,lamAway)); }
+    let pHome=0, pDraw=0, pOver15=0, pOver25=0, pOver35=0;
+    for(let i=0;i<=maxG;i++){
+      for(let j=0;j<=maxG;j++){
+        const p = ph[i]*pa[j];
+        if(i>j) pHome += p;
+        if(i===j) pDraw += p;
+        if(i+j>=2) pOver15 += p;
+        if(i+j>=3) pOver25 += p;
+        if(i+j>=4) pOver35 += p;
+      }
+    }
+    return { pHome, pDraw, pAway: 1-pHome-pDraw, pOver15, pOver25, pOver35 };
+  }
+
+  // ============================================================
+  // REPORT
+  // ============================================================
+
+  function formatReport(data){
+    const lines = [];
+    lines.push('BABAYAGA — MATCH PROJECTION (Statarea-derived)');
+    lines.push(`Generated: ${new Date().toLocaleString()}`);
+    lines.push('='.repeat(38));
+    lines.push('');
+    lines.push('MATCH');
+    lines.push(`  ${data.homeTeam}  (home)  vs  ${data.awayTeam}  (away)`);
+    lines.push(`  League teams parsed: ${data.leagueTeamCount}`);
+    lines.push('');
+
+    if(data.lambdas){
+      lines.push('EXPECTED GOALS (season-long, venue-specific)');
+      lines.push(`  Lambda Home: ${data.lambdas.lamHome.toFixed(2)}`);
+      lines.push(`  Lambda Away: ${data.lambdas.lamAway.toFixed(2)}`);
+      lines.push('');
+      lines.push('MATCH PROBABILITIES');
+      lines.push(`  Home Win:  ${(data.probs.pHome*100).toFixed(1)}%`);
+      lines.push(`  Draw:      ${(data.probs.pDraw*100).toFixed(1)}%`);
+      lines.push(`  Away Win:  ${(data.probs.pAway*100).toFixed(1)}%`);
+      lines.push('');
+      lines.push('GOALS MARKETS');
+      lines.push(`  Over 1.5:  ${(data.probs.pOver15*100).toFixed(1)}%`);
+      lines.push(`  Over 2.5:  ${(data.probs.pOver25*100).toFixed(1)}%`);
+      lines.push(`  Over 3.5:  ${(data.probs.pOver35*100).toFixed(1)}%`);
+      lines.push('');
+    } else {
+      lines.push('EXPECTED GOALS');
+      lines.push('  Could not compute — one or both teams missing from standings table.');
+      lines.push('');
+    }
+
+    if(data.blended){
+      lines.push('BLENDED (60% season / 40% last-10 form) — stability cross-check');
+      lines.push(`  Lambda Home: ${data.blended.lamHome.toFixed(2)}   Lambda Away: ${data.blended.lamAway.toFixed(2)}`);
+      lines.push(`  Home Win: ${(data.blendedProbs.pHome*100).toFixed(1)}%  Draw: ${(data.blendedProbs.pDraw*100).toFixed(1)}%  Away Win: ${(data.blendedProbs.pAway*100).toFixed(1)}%`);
+      const divergence = Math.abs(data.probs.pHome - data.blendedProbs.pHome);
+      if(divergence > 0.10){
+        lines.push(`  \u26A0 Season-only and form-blended estimates diverge by ${(divergence*100).toFixed(1)} points on Home Win —`);
+        lines.push(`    recent form disagrees notably with season-long standings. Worth a manual look before trusting this match.`);
+      }
+      lines.push('');
+    }
+
+    if(data.h2h && data.h2h.totalMatches){
+      lines.push('HEAD-TO-HEAD (all-time)');
+      lines.push(`  Matches: ${data.h2h.totalMatches}`);
+      if(data.h2h.homeWins) lines.push(`  ${data.h2h.homeWins.label}: ${data.h2h.homeWins.value} (${(data.h2h.homeWins.value/data.h2h.totalMatches*100).toFixed(0)}%)`);
+      if(data.h2h.awayWins) lines.push(`  ${data.h2h.awayWins.label}: ${data.h2h.awayWins.value} (${(data.h2h.awayWins.value/data.h2h.totalMatches*100).toFixed(0)}%)`);
+      if(data.h2h.draws !== null) lines.push(`  Draws: ${data.h2h.draws} (${(data.h2h.draws/data.h2h.totalMatches*100).toFixed(0)}%)`);
+      lines.push('');
+    }
+
+    lines.push('='.repeat(38));
+    lines.push('Cross-check this projection against the H2H record and current form before relying on it.');
+    return lines.join('\n');
+  }
+
+  // ============================================================
+  // ORCHESTRATION
+  // ============================================================
+
+  async function runExtraction(doc){
+    const stageEls = { stage1:document.getElementById('stage1'), stage2:document.getElementById('stage2'),
+                        stage3:document.getElementById('stage3'), stage4:document.getElementById('stage4') };
+    const extractText = document.getElementById('extractText');
+    function setStage(n, text){
+      Object.values(stageEls).forEach(el=>el.classList.remove('active'));
+      for(let i=1;i<n;i++) stageEls['stage'+i].classList.add('done');
+      if(n<=4) stageEls['stage'+n].classList.add('active');
+      extractText.innerHTML = `<b>${text}</b>`;
+    }
+
+    try{
+      setStage(1, 'Parsing document...');
+      const parser = new DOMParser();
+      const dom = parser.parseFromString(doc.text, 'text/html');
+      await new Promise(r=>setTimeout(r,200));
+
+      const { home: titleHome, away: titleAway } = parseTeamNames(dom);
+
+      setStage(2, 'Extracting standings...');
+      const teams = parseStandings(dom);
+      await new Promise(r=>setTimeout(r,200));
+
+      if(teams.length === 0){
+        throw new Error('No standings table found in this document — check it\'s a Statarea "compare teams" page.');
+      }
+
+      // Resolve home/away team names against the standings list. Primary
+      // source is the page title text ("A vs B teams information...").
+      // CONFIRMED (real Statarea capture, Valerenga vs Bodo/Glimt): the
+      // title text itself can be broken at the source — it literally
+      // contained "no-display" as the away team's name (a template
+      // fallback string that leaked into the page, not an OCR/parsing
+      // error on our end). No amount of better title-parsing recovers a
+      // name that was never really there. Fallback: the H2H "X wins" data
+      // labels carry real team names independent of the title, and were
+      // intact on the same broken page — used here as a second source,
+      // tried only when the title-derived name doesn't match anything in
+      // the standings table at all (exact or partial).
+      const h2hEarly = parseH2H(dom);
+
+      function resolveTeamName(titleName, h2hCandidate){
+        const tryMatch = (name) => {
+          if(!name) return null;
+          const exact = teams.find(t => t.name.toLowerCase() === name.toLowerCase());
+          if(exact) return exact.name;
+          const partial = teams.find(t => t.name.toLowerCase().includes(name.toLowerCase()) || name.toLowerCase().includes(t.name.toLowerCase()));
+          return partial ? partial.name : null;
+        };
+        return tryMatch(titleName) || tryMatch(h2hCandidate) || titleName || h2hCandidate || null;
+      }
+      const homeTeam = resolveTeamName(titleHome, h2hEarly.winLabelTeams[0]);
+      const awayTeam = resolveTeamName(titleAway, h2hEarly.winLabelTeams[1]);
+
+      setStage(3, 'Building team ratings...');
+      const { ratings, muHome, muAway } = buildLeagueRatings(teams);
+      await new Promise(r=>setTimeout(r,200));
+
+      const ratingsReport = Object.entries(ratings).map(([name,r]) =>
+        `${name.padEnd(22)} AtkH:${r.atkHome.toFixed(2)}  DefH:${r.defHome.toFixed(2)}  AtkA:${r.atkAway.toFixed(2)}  DefA:${r.defAway.toFixed(2)}`
+      ).join('\n');
+      document.getElementById('rawRatingsText').textContent =
+        `League avg home goals/match: ${muHome.toFixed(3)}\nLeague avg away goals/match: ${muAway.toFixed(3)}\n\n${ratingsReport}`;
+
+      setStage(4, 'Computing match projection...');
+      const lambdas = matchLambdas(homeTeam, awayTeam, ratings, muHome, muAway);
+      const probs = lambdas ? poissonProbs(lambdas.lamHome, lambdas.lamAway) : null;
+
+      // Form-blended cross-check
+      let blended = null, blendedProbs = null;
+      const homeForm = parseLastTenForm(dom, homeTeam);
+      const awayForm = parseLastTenForm(dom, awayTeam);
+      if(lambdas && homeForm && awayForm){
+        const homeScored = findFactValue(homeForm, ['average','scored']);
+        const homeConceded = findFactValue(homeForm, ['average','conceded']);
+        const awayScored = findFactValue(awayForm, ['average','scored']);
+        const awayConceded = findFactValue(awayForm, ['average','conceded']);
+        if([homeScored,homeConceded,awayScored,awayConceded].every(v => typeof v === 'number')){
+          const leagueAvgGoals = (muHome + muAway) / 2;
+          const lamHomeForm = muHome * (homeScored/leagueAvgGoals) * (awayConceded/leagueAvgGoals);
+          const lamAwayForm = muAway * (awayScored/leagueAvgGoals) * (homeConceded/leagueAvgGoals);
+          const lamHomeBlend = 0.6*lambdas.lamHome + 0.4*lamHomeForm;
+          const lamAwayBlend = 0.6*lambdas.lamAway + 0.4*lamAwayForm;
+          blended = { lamHome: lamHomeBlend, lamAway: lamAwayBlend };
+          blendedProbs = poissonProbs(lamHomeBlend, lamAwayBlend);
+        }
+      }
+
+      const h2h = h2hEarly;
+      await new Promise(r=>setTimeout(r,200));
+
+      document.getElementById('radar').style.display = 'none';
+      stageEls['stage4'].classList.add('done');
+
+      const data = {
+        homeTeam, awayTeam, leagueTeamCount: teams.length,
+        lambdas, probs, blended, blendedProbs, h2h
+      };
+
+      if(!lambdas){
+        extractText.innerHTML = `<b style="color:#ff5c5c">Parsed, but couldn't project.</b><br>"${homeTeam}" or "${awayTeam}" wasn't found with complete home/away splits in the standings table.`;
+      } else {
+        extractText.innerHTML = `<b>Projection complete.</b><br>${homeTeam} vs ${awayTeam} &middot; Home ${(probs.pHome*100).toFixed(0)}% / Draw ${(probs.pDraw*100).toFixed(0)}% / Away ${(probs.pAway*100).toFixed(0)}%`;
+      }
+
+      const reportText = formatReport(data);
+      document.getElementById('rawJson').textContent = reportText;
+
+      localStorage.setItem('matchProjection', JSON.stringify(data));
+
+      const downloadBtn = document.getElementById('downloadBtn');
+      const copyBtn = document.getElementById('copyBtn');
+      downloadBtn.disabled = false; downloadBtn.classList.add('enabled');
+      copyBtn.disabled = false; copyBtn.classList.add('enabled');
+
+      downloadBtn.addEventListener('click', function(){
+        if(this.disabled) return;
+        const blob = new Blob([reportText], { type:'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `babayaga_projection_${Date.now()}.txt`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+      copyBtn.addEventListener('click', async function(){
+        if(this.disabled) return;
+        try{
+          await navigator.clipboard.writeText(reportText);
+          this.innerHTML = '&#10003; COPIED';
+          setTimeout(()=>{ this.innerHTML = '&#128203; COPY TO CLIPBOARD'; }, 1500);
+        } catch(e){
+          const ta = document.createElement('textarea');
+          ta.value = reportText; ta.style.position='fixed'; ta.style.opacity='0';
+          document.body.appendChild(ta); ta.focus(); ta.select();
+          try{ document.execCommand('copy'); this.innerHTML = '&#10003; COPIED'; setTimeout(()=>{ this.innerHTML = '&#128203; COPY TO CLIPBOARD'; }, 1500); }
+          catch(e2){ alert('Copy failed. Please select and copy the text from the box above manually.'); }
+          document.body.removeChild(ta);
+        }
+      });
+
+      updateProceed(!!lambdas);
+    } catch(err){
+      document.getElementById('radar').style.display = 'none';
+      extractText.innerHTML = `<b style="color:#ff5c5c">Parsing failed.</b><br>${err.message}`;
+      console.error(err);
+    }
+  }
+
+  (async function init(){
+    const doc = await loadStatareaDoc();
+    renderUploadStatus(doc);
+    if(doc){
+      runExtraction(doc);
+    } else {
+      document.getElementById('radar').style.display = 'none';
+      document.getElementById('extractText').innerHTML =
+        `<b style="color:#ff5c5c">No document found in memory.</b><br>Go back to Home and upload/paste the Statarea webpage again — it wasn't carried into this session.`;
+    }
+  })();
+</script>
+</body>
+</html>

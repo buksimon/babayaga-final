@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>BABAYAGA — Processing</title>
+<style>
+  :root{ --bg:#000000; --amber:#ff9d2e; --amber-dim:#7a4408; --grey-dim:#2c2c2c; }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{ min-height:100%; background:var(--bg); font-family:'Segoe UI',system-ui,-apple-system,sans-serif; }
+  body{ display:flex; justify-content:center; align-items:flex-start; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  .screen{ width:100%; max-width:420px; min-height:100vh; padding:10px 14px 68px; display:flex; flex-direction:column; align-items:center; position:relative; }
+  .screen::before{ content:""; position:absolute; inset:0; background:radial-gradient(circle at 50% 12%, rgba(255,157,46,0.08) 0%, rgba(255,157,46,0) 55%); pointer-events:none; }
+
+  .top-row{ width:100%; display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; z-index:1; }
+  .back-btn{ width:25px; height:25px; border-radius:7px; border:1.5px solid var(--grey-dim); display:flex; align-items:center; justify-content:center; color:#ccc; font-size:13px; background:none; cursor:pointer; }
+  .page-pill{ font-size:8.5px; letter-spacing:1.3px; color:var(--amber); border-bottom:1px solid var(--amber-dim); padding-bottom:2px; }
+
+  .brand{ font-size:15px; font-weight:800; letter-spacing:3px; color:#eaeaea; z-index:1; margin-top:2px; }
+  .range-title{ font-size:10.5px; letter-spacing:1.8px; color:var(--amber); margin:3px 0 8px; display:flex; align-items:center; gap:7px; z-index:1; }
+  .range-title::before, .range-title::after{ content:"\25CE"; font-size:9.5px; opacity:0.8; }
+
+  .box{ width:100%; border-radius:10px; border:1.5px solid var(--grey-dim); padding:8px; margin-bottom:7px; z-index:1; }
+  .box-title{ font-size:9.5px; letter-spacing:1.1px; font-weight:700; margin-bottom:6px; color:var(--amber); display:flex; align-items:center; gap:6px; }
+
+  .extract-row{ display:flex; align-items:center; gap:9px; margin-bottom:6px; }
+  .radar{ width:36px; height:36px; border-radius:50%; border:2px solid rgba(255,157,46,0.25); position:relative; flex-shrink:0; }
+  .radar::after{ content:""; position:absolute; inset:-2px; border-radius:50%; border-top:2px solid var(--amber); animation:spin 1.4s linear infinite; }
+  @keyframes spin{ from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
+  .extract-text{ font-size:9.5px; color:#ccc; line-height:1.35; }
+  .extract-text b{ color:var(--amber); }
+
+  .stage-grid{ display:flex; flex-wrap:wrap; gap:4px 7px; margin-top:3px; }
+  .stage{ display:flex; align-items:center; gap:4px; font-size:8px; color:#777; }
+  .stage-dot{ width:6px; height:6px; border-radius:50%; background:#333; flex-shrink:0; }
+  .stage.done .stage-dot{ background:var(--amber); box-shadow:0 0 5px var(--amber); }
+  .stage.done{ color:#ccc; }
+  .stage.active .stage-dot{ background:var(--amber); animation:pulse 1s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{opacity:0.4;} 50%{opacity:1;} }
+
+  table.mtab{ width:100%; border-collapse:collapse; font-size:9px; color:#ccc; }
+  table.mtab th{ text-align:left; color:#777; font-weight:600; padding:3px 4px; border-bottom:1px solid var(--grey-dim); font-size:8px; letter-spacing:0.4px; }
+  table.mtab td{ padding:4px 4px; border-bottom:1px solid #161616; }
+  table.mtab tr:last-child td{ border-bottom:none; }
+  .conv-yes{ color:var(--amber); font-weight:700; }
+  .conv-no{ color:#ff8080; }
+  .market-block{ margin-bottom:10px; }
+  .market-block:last-child{ margin-bottom:0; }
+  .market-label{ font-size:9.5px; color:#eaeaea; font-weight:700; margin-bottom:4px; letter-spacing:0.4px; }
+
+  .raw-json{ background:#0a0a0a; border-radius:7px; padding:8px; font-size:8.5px; line-height:1.4; color:#e0c08a; max-height:260px; overflow-y:auto; white-space:pre-wrap; word-break:break-word; margin-bottom:7px; font-family:'Courier New',monospace; }
+  .download-btn{ width:100%; padding:8px; border-radius:8px; background:transparent; border:1.5px solid #444; color:#666; font-size:9.5px; font-weight:700; letter-spacing:0.8px; cursor:not-allowed; }
+  .download-btn.enabled{ border-color:var(--amber-dim); color:var(--amber); cursor:pointer; }
+
+  .proceed-btn{ width:100%; padding:10px; border-radius:9px; z-index:1; background:transparent; border:1.5px solid #444; color:#666; font-size:11.5px; font-weight:800; letter-spacing:1.3px; cursor:not-allowed; display:flex; align-items:center; justify-content:center; gap:8px; transition:all .25s ease; }
+  .proceed-btn.enabled{ border-color:var(--amber); color:var(--amber); cursor:pointer; box-shadow:0 0 14px rgba(255,157,46,0.3); }
+
+  .bottom-nav{ position:fixed; bottom:0; left:0; right:0; background:#000; border-top:1px solid #1c1c1c; display:flex; justify-content:center; z-index:999; }
+  .bottom-nav-inner{ width:100%; max-width:420px; display:flex; justify-content:space-around; padding:7px 0 9px; }
+  .nav-item{ display:flex; flex-direction:column; align-items:center; gap:3px; font-size:8.5px; color:#666; letter-spacing:0.7px; cursor:pointer; background:none; border:none; font-family:inherit; }
+  .nav-item.active{ color:var(--amber); }
+  .nav-icon{ font-size:13px; }
+</style>
+</head>
+<body>
+<div class="screen">
+
+  <div class="top-row">
+    <button class="back-btn" onclick="history.back()">&#8592;</button>
+    <div class="page-pill">PAGE 3 OF 4</div>
+  </div>
+
+  <div class="brand">BABAYAGA</div>
+  <div class="range-title">SIMULATOR</div>
+
+  <div class="box">
+    <div class="box-title">MATCH</div>
+    <div id="matchInfoLine" class="extract-text">Loading projection from Range Analysis...</div>
+  </div>
+
+  <div class="box extract-box">
+    <div class="box-title">SIMULATION IN PROGRESS</div>
+    <div class="extract-row">
+      <div class="radar" id="radar"></div>
+      <div class="extract-text" id="extractText"><b>Starting...</b></div>
+    </div>
+    <div class="stage-grid">
+      <div class="stage" id="stage1"><span class="stage-dot"></span>EXACT POISSON GRID</div>
+      <div class="stage" id="stage2"><span class="stage-dot"></span>MONTE CARLO (20,000 runs)</div>
+      <div class="stage" id="stage3"><span class="stage-dot"></span>CONVERGENCE CHECK</div>
+      <div class="stage" id="stage4"><span class="stage-dot"></span>MARKET COMPILATION</div>
+    </div>
+  </div>
+
+  <div class="box" id="marketsBox" style="display:none;">
+    <div class="box-title">MARKETS — EXACT GRID vs MONTE CARLO</div>
+    <div id="marketsContent"></div>
+  </div>
+
+  <div class="box raw-box" id="rawBox" style="display:none;">
+    <div class="box-title">SIMULATION REPORT</div>
+    <pre id="rawJson" class="raw-json">Waiting...</pre>
+    <button class="download-btn" id="downloadBtn" disabled>&#8595; DOWNLOAD REPORT (.txt)</button>
+    <button class="download-btn" id="copyBtn" disabled style="margin-top:6px;">&#128203; COPY TO CLIPBOARD</button>
+  </div>
+
+  <button class="proceed-btn" id="proceedBtn" disabled>PROCEED TO RESULTS &#8594;</button>
+
+</div>
+
+<div class="bottom-nav">
+  <div class="bottom-nav-inner">
+    <button class="nav-item" onclick="goTo('page1.html')"><span class="nav-icon">&#8962;</span>HOME</button>
+    <button class="nav-item" onclick="goTo('page2.html')"><span class="nav-icon">&#8982;</span>RANGE</button>
+    <button class="nav-item active" onclick="goTo('page3.html')"><span class="nav-icon">&#9881;</span>PROCESSING</button>
+    <button class="nav-item" onclick="goTo('page4.html')"><span class="nav-icon">&#128202;</span>RESULTS</button>
+  </div>
+</div>
+
+<script>
+  function goTo(page){ window.location.href = page; }
+  window.goTo = goTo;
+
+  // ============================================================
+  // SIMULATOR — dual method (exact Poisson grid + Monte Carlo),
+  // cross-validated against each other. Input: Lambda_Home/Lambda_Away
+  // from page2's matchProjection (localStorage). Output markets: 1X2,
+  // O/U 1.5/2.5/3.5, BTTS, correct score grid, Asian handicap, double
+  // chance — each shown as [exact grid value] vs [Monte Carlo value]
+  // with a convergence flag (agree within 1.5 percentage points = the
+  // two independent methods corroborate each other, same spirit as the
+  // vFootball reconstruction-simulator-vs-bookmaker check).
+  // ============================================================
+
+  const MC_RUNS = 20000;
+  const MAX_GOALS_GRID = 10; // truncation for exact grid summation
+  const CONVERGENCE_THRESHOLD = 1.5; // percentage points
+
+  function poissonPmf(k, lambda){
+    return Math.exp(-lambda + k*Math.log(lambda) - lnFactorial(k));
+  }
+  function lnFactorial(n){ let r=0; for(let i=2;i<=n;i++) r+=Math.log(i); return r; }
+
+  // Knuth's algorithm — fine for the lambda ranges (~0.5-4) this app deals with.
+  function samplePoisson(lambda){
+    const L = Math.exp(-lambda);
+    let k = 0, p = 1;
+    do { k++; p *= Math.random(); } while(p > L);
+    return k - 1;
+  }
+
+  // ---------- EXACT GRID ----------
+  function buildExactGrid(lamHome, lamAway){
+    const ph = [], pa = [];
+    for(let i=0;i<=MAX_GOALS_GRID;i++){ ph.push(poissonPmf(i,lamHome)); pa.push(poissonPmf(i,lamAway)); }
+    const grid = [];
+    for(let i=0;i<=MAX_GOALS_GRID;i++){
+      grid.push([]);
+      for(let j=0;j<=MAX_GOALS_GRID;j++) grid[i].push(ph[i]*pa[j]);
+    }
+    return grid;
+  }
+
+  function marketsFromGrid(grid){
+    let pHome=0,pDraw=0,pAway=0,pOver15=0,pOver25=0,pOver35=0,pBttsYes=0;
+    const scores = [];
+    for(let i=0;i<=MAX_GOALS_GRID;i++){
+      for(let j=0;j<=MAX_GOALS_GRID;j++){
+        const p = grid[i][j];
+        if(i>j) pHome+=p; else if(i===j) pDraw+=p; else pAway+=p;
+        if(i+j>=2) pOver15+=p;
+        if(i+j>=3) pOver25+=p;
+        if(i+j>=4) pOver35+=p;
+        if(i>=1 && j>=1) pBttsYes+=p;
+        scores.push({ score:`${i}-${j}`, p });
+      }
+    }
+    scores.sort((a,b)=>b.p-a.p);
+    const handicaps = {};
+    for(const h of [-2,-1.5,-1,-0.5,0,0.5,1,1.5,2]){
+      let win=0, push=0;
+      for(let i=0;i<=MAX_GOALS_GRID;i++){
+        for(let j=0;j<=MAX_GOALS_GRID;j++){
+          const adj = i + h;
+          if(adj > j) win += grid[i][j];
+          else if(adj === j) push += grid[i][j];
+        }
+      }
+      handicaps[h] = { win, push, loss: 1 - win - push };
+    }
+    return {
+      pHome, pDraw, pAway,
+      pOver15, pUnder15: 1-pOver15,
+      pOver25, pUnder25: 1-pOver25,
+      pOver35, pUnder35: 1-pOver35,
+      pBttsYes, pBttsNo: 1-pBttsYes,
+      p1X: pHome+pDraw, p12: pHome+pAway, pX2: pDraw+pAway,
+      topScores: scores.slice(0,6),
+      handicaps
+    };
+  }
+
+  // ---------- MONTE CARLO ----------
+  function runMonteCarlo(lamHome, lamAway, n){
+    let cHome=0,cDraw=0,cAway=0,cOver15=0,cOver25=0,cOver35=0,cBtts=0;
+    const scoreCounts = {};
+    const handicapWin = {}, handicapPush = {};
+    const hLines = [-2,-1.5,-1,-0.5,0,0.5,1,1.5,2];
+    hLines.forEach(h=>{ handicapWin[h]=0; handicapPush[h]=0; });
+
+    for(let s=0;s<n;s++){
+      const h = samplePoisson(lamHome);
+      const a = samplePoisson(lamAway);
+      if(h>a) cHome++; else if(h===a) cDraw++; else cAway++;
+      const total = h+a;
+      if(total>=2) cOver15++;
+      if(total>=3) cOver25++;
+      if(total>=4) cOver35++;
+      if(h>=1 && a>=1) cBtts++;
+      const key = `${Math.min(h,10)}-${Math.min(a,10)}`;
+      scoreCounts[key] = (scoreCounts[key]||0) + 1;
+      hLines.forEach(hl=>{
+        const adj = h + hl;
+        if(adj > a) handicapWin[hl]++;
+        else if(adj === a) handicapPush[hl]++;
+      });
+    }
+    const topScores = Object.entries(scoreCounts).map(([score,c])=>({score,p:c/n})).sort((a,b)=>b.p-a.p).slice(0,6);
+    const handicaps = {};
+    hLines.forEach(hl=>{
+      const win = handicapWin[hl]/n, push = handicapPush[hl]/n;
+      handicaps[hl] = { win, push, loss: 1-win-push };
+    });
+    return {
+      pHome:cHome/n, pDraw:cDraw/n, pAway:cAway/n,
+      pOver15:cOver15/n, pUnder15:1-cOver15/n,
+      pOver25:cOver25/n, pUnder25:1-cOver25/n,
+      pOver35:cOver35/n, pUnder35:1-cOver35/n,
+      pBttsYes:cBtts/n, pBttsNo:1-cBtts/n,
+      p1X:(cHome+cDraw)/n, p12:(cHome+cAway)/n, pX2:(cDraw+cAway)/n,
+      topScores, handicaps
+    };
+  }
+
+  function pct(x){ return (x*100).toFixed(1)+'%'; }
+  function converges(a,b){ return Math.abs(a-b)*100 <= CONVERGENCE_THRESHOLD; }
+
+  function marketRow(label, exact, mc){
+    const ok = converges(exact, mc);
+    return `<tr><td>${label}</td><td>${pct(exact)}</td><td>${pct(mc)}</td><td class="${ok?'conv-yes':'conv-no'}">${ok?'\u2713':'\u26A0'}</td></tr>`;
+  }
+
+  function renderMarkets(exact, mc){
+    const container = document.getElementById('marketsContent');
+    let html = '';
+
+    html += `<div class="market-block"><div class="market-label">1X2</div><table class="mtab"><tr><th>Outcome</th><th>Grid</th><th>MC</th><th></th></tr>
+      ${marketRow('Home', exact.pHome, mc.pHome)}
+      ${marketRow('Draw', exact.pDraw, mc.pDraw)}
+      ${marketRow('Away', exact.pAway, mc.pAway)}
+    </table></div>`;
+
+    html += `<div class="market-block"><div class="market-label">DOUBLE CHANCE</div><table class="mtab"><tr><th>Outcome</th><th>Grid</th><th>MC</th><th></th></tr>
+      ${marketRow('1X (Home/Draw)', exact.p1X, mc.p1X)}
+      ${marketRow('12 (Home/Away)', exact.p12, mc.p12)}
+      ${marketRow('X2 (Draw/Away)', exact.pX2, mc.pX2)}
+    </table></div>`;
+
+    html += `<div class="market-block"><div class="market-label">GOALS O/U</div><table class="mtab"><tr><th>Line</th><th>Grid</th><th>MC</th><th></th></tr>
+      ${marketRow('Over 1.5', exact.pOver15, mc.pOver15)}
+      ${marketRow('Over 2.5', exact.pOver25, mc.pOver25)}
+      ${marketRow('Over 3.5', exact.pOver35, mc.pOver35)}
+    </table></div>`;
+
+    html += `<div class="market-block"><div class="market-label">BTTS</div><table class="mtab"><tr><th>Outcome</th><th>Grid</th><th>MC</th><th></th></tr>
+      ${marketRow('Yes', exact.pBttsYes, mc.pBttsYes)}
+      ${marketRow('No', exact.pBttsNo, mc.pBttsNo)}
+    </table></div>`;
+
+    html += `<div class="market-block"><div class="market-label">ASIAN HANDICAP (Home)</div><table class="mtab"><tr><th>Line</th><th>Grid Win</th><th>MC Win</th><th></th></tr>`;
+    [-2,-1.5,-1,-0.5,0,0.5,1,1.5,2].forEach(h=>{
+      const label = h>0?`+${h}`:`${h}`;
+      html += marketRow(label, exact.handicaps[h].win, mc.handicaps[h].win);
+    });
+    html += `</table></div>`;
+
+    html += `<div class="market-block"><div class="market-label">TOP CORRECT SCORES (Grid)</div><table class="mtab"><tr><th>Score</th><th>Grid</th><th>MC</th></tr>`;
+    exact.topScores.forEach(s=>{
+      const mcMatch = mc.topScores.find(m=>m.score===s.score);
+      html += `<tr><td>${s.score}</td><td>${pct(s.p)}</td><td>${mcMatch?pct(mcMatch.p):'—'}</td></tr>`;
+    });
+    html += `</table></div>`;
+
+    container.innerHTML = html;
+  }
+
+  function formatReport(matchInfo, exact, mc){
+    const lines = [];
+    lines.push('BABAYAGA — SIMULATION REPORT (Exact Poisson Grid + Monte Carlo)');
+    lines.push(`Generated: ${new Date().toLocaleString()}`);
+    lines.push(`Monte Carlo runs: ${MC_RUNS.toLocaleString()}`);
+    lines.push('='.repeat(40));
+    lines.push('');
+    lines.push(`MATCH: ${matchInfo.homeTeam} (home) vs ${matchInfo.awayTeam} (away)`);
+    lines.push(`Lambda Home: ${matchInfo.lambdas.lamHome.toFixed(2)}   Lambda Away: ${matchInfo.lambdas.lamAway.toFixed(2)}`);
+    lines.push('');
+
+    function block(title, rows){
+      lines.push(title);
+      rows.forEach(([label,e,m]) => {
+        const ok = converges(e,m) ? 'CONVERGE' : 'DIVERGE';
+        lines.push(`  ${label.padEnd(18)} Grid: ${pct(e).padEnd(7)} MC: ${pct(m).padEnd(7)} [${ok}]`);
+      });
+      lines.push('');
+    }
+
+    block('1X2', [['Home',exact.pHome,mc.pHome],['Draw',exact.pDraw,mc.pDraw],['Away',exact.pAway,mc.pAway]]);
+    block('DOUBLE CHANCE', [['1X',exact.p1X,mc.p1X],['12',exact.p12,mc.p12],['X2',exact.pX2,mc.pX2]]);
+    block('GOALS O/U', [['Over 1.5',exact.pOver15,mc.pOver15],['Over 2.5',exact.pOver25,mc.pOver25],['Over 3.5',exact.pOver35,mc.pOver35]]);
+    block('BTTS', [['Yes',exact.pBttsYes,mc.pBttsYes],['No',exact.pBttsNo,mc.pBttsNo]]);
+
+    lines.push('ASIAN HANDICAP (Home) — Win probability');
+    [-2,-1.5,-1,-0.5,0,0.5,1,1.5,2].forEach(h=>{
+      const label = h>0?`+${h}`:`${h}`;
+      const e = exact.handicaps[h].win, m = mc.handicaps[h].win;
+      const ok = converges(e,m) ? 'CONVERGE' : 'DIVERGE';
+      lines.push(`  ${label.padEnd(6)} Grid: ${pct(e).padEnd(7)} MC: ${pct(m).padEnd(7)} [${ok}]`);
+    });
+    lines.push('');
+
+    lines.push('TOP CORRECT SCORES (exact grid, ranked)');
+    exact.topScores.forEach(s=>{
+      const mcMatch = mc.topScores.find(x=>x.score===s.score);
+      lines.push(`  ${s.score.padEnd(6)} Grid: ${pct(s.p).padEnd(7)} MC: ${mcMatch?pct(mcMatch.p):'—'}`);
+    });
+    lines.push('');
+
+    lines.push('='.repeat(40));
+    lines.push('CONVERGENCE = the two independent methods agree within 1.5 points, i.e. corroborate');
+    lines.push('each other. DIVERGE markets are lower-confidence for this lambda pair and worth a');
+    lines.push('second look (often thin correct-score cells or extreme handicap lines with few samples).');
+    return lines.join('\n');
+  }
+
+  async function runSimulation(matchInfo){
+    const stageEls = { stage1:document.getElementById('stage1'), stage2:document.getElementById('stage2'),
+                        stage3:document.getElementById('stage3'), stage4:document.getElementById('stage4') };
+    const extractText = document.getElementById('extractText');
+    function setStage(n, text){
+      Object.values(stageEls).forEach(el=>el.classList.remove('active'));
+      for(let i=1;i<n;i++) stageEls['stage'+i].classList.add('done');
+      if(n<=4) stageEls['stage'+n].classList.add('active');
+      extractText.innerHTML = `<b>${text}</b>`;
+    }
+
+    const { lamHome, lamAway } = matchInfo.lambdas;
+
+    setStage(1, 'Building exact Poisson grid...');
+    await new Promise(r=>setTimeout(r,150));
+    const grid = buildExactGrid(lamHome, lamAway);
+    const exact = marketsFromGrid(grid);
+
+    setStage(2, `Running Monte Carlo (${MC_RUNS.toLocaleString()} matches)...`);
+    await new Promise(r=>setTimeout(r,150));
+    const mc = runMonteCarlo(lamHome, lamAway, MC_RUNS);
+
+    setStage(3, 'Checking convergence between methods...');
+    await new Promise(r=>setTimeout(r,150));
+    const marketChecks = [
+      converges(exact.pHome,mc.pHome), converges(exact.pDraw,mc.pDraw), converges(exact.pAway,mc.pAway),
+      converges(exact.pOver25,mc.pOver25), converges(exact.pBttsYes,mc.pBttsYes)
+    ];
+    const convergedCount = marketChecks.filter(Boolean).length;
+
+    setStage(4, 'Compiling markets...');
+    await new Promise(r=>setTimeout(r,150));
+
+    document.getElementById('radar').style.display = 'none';
+    stageEls['stage4'].classList.add('done');
+    extractText.innerHTML = `<b>Simulation complete.</b><br>${convergedCount}/${marketChecks.length} core markets converged between Grid and Monte Carlo.`;
+
+    document.getElementById('marketsBox').style.display = '';
+    renderMarkets(exact, mc);
+
+    const reportText = formatReport(matchInfo, exact, mc);
+    document.getElementById('rawJson').textContent = reportText;
+    document.getElementById('rawBox').style.display = '';
+
+    localStorage.setItem('simulationResult', JSON.stringify({ matchInfo, exact, mc }));
+
+    const downloadBtn = document.getElementById('downloadBtn');
+    const copyBtn = document.getElementById('copyBtn');
+    downloadBtn.disabled = false; downloadBtn.classList.add('enabled');
+    copyBtn.disabled = false; copyBtn.classList.add('enabled');
+
+    downloadBtn.addEventListener('click', function(){
+      if(this.disabled) return;
+      const blob = new Blob([reportText], { type:'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `babayaga_simulation_${Date.now()}.txt`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+    copyBtn.addEventListener('click', async function(){
+      if(this.disabled) return;
+      try{
+        await navigator.clipboard.writeText(reportText);
+        this.innerHTML = '&#10003; COPIED';
+        setTimeout(()=>{ this.innerHTML = '&#128203; COPY TO CLIPBOARD'; }, 1500);
+      } catch(e){
+        const ta = document.createElement('textarea');
+        ta.value = reportText; ta.style.position='fixed'; ta.style.opacity='0';
+        document.body.appendChild(ta); ta.focus(); ta.select();
+        try{ document.execCommand('copy'); this.innerHTML = '&#10003; COPIED'; setTimeout(()=>{ this.innerHTML = '&#128203; COPY TO CLIPBOARD'; }, 1500); }
+        catch(e2){ alert('Copy failed. Please select and copy the text from the box above manually.'); }
+        document.body.removeChild(ta);
+      }
+    });
+
+    const proceedBtn = document.getElementById('proceedBtn');
+    proceedBtn.disabled = false;
+    proceedBtn.classList.add('enabled');
+  }
+
+  document.getElementById('proceedBtn').addEventListener('click', function(){
+    if(this.disabled) return;
+    window.location.href = 'page4.html';
+  });
+
+  (function init(){
+    const raw = localStorage.getItem('matchProjection');
+    if(!raw){
+      document.getElementById('radar').style.display = 'none';
+      document.getElementById('extractText').innerHTML =
+        `<b style="color:#ff5c5c">No projection found.</b><br>Go back to Range Analysis and run the extraction first.`;
+      document.getElementById('matchInfoLine').textContent = 'No match loaded.';
+      return;
+    }
+    const matchInfo = JSON.parse(raw);
+    if(!matchInfo.lambdas){
+      document.getElementById('radar').style.display = 'none';
+      document.getElementById('extractText').innerHTML =
+        `<b style="color:#ff5c5c">Projection has no lambda values.</b><br>Go back to Range Analysis — team names may not have matched the standings table.`;
+      document.getElementById('matchInfoLine').textContent = `${matchInfo.homeTeam || '?'} vs ${matchInfo.awayTeam || '?'} — incomplete`;
+      return;
+    }
+    document.getElementById('matchInfoLine').innerHTML =
+      `<b>${matchInfo.homeTeam}</b> (home) vs <b>${matchInfo.awayTeam}</b> (away) &middot; \u03BBH ${matchInfo.lambdas.lamHome.toFixed(2)} / \u03BBA ${matchInfo.lambdas.lamAway.toFixed(2)}`;
+    runSimulation(matchInfo);
+  })();
+</script>
+</body>
+</html>

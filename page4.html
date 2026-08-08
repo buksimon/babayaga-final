@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>BABAYAGA — Results</title>
+<style>
+  :root{ --bg:#000000; --amber:#ff9d2e; --amber-dim:#7a4408; --grey-dim:#2c2c2c; }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{ min-height:100%; background:var(--bg); font-family:'Segoe UI',system-ui,-apple-system,sans-serif; }
+  body{ display:flex; justify-content:center; align-items:flex-start; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  .screen{ width:100%; max-width:420px; min-height:100vh; padding:10px 14px 68px; display:flex; flex-direction:column; align-items:center; position:relative; }
+  .screen::before{ content:""; position:absolute; inset:0; background:radial-gradient(circle at 50% 12%, rgba(255,157,46,0.08) 0%, rgba(255,157,46,0) 55%); pointer-events:none; }
+
+  .top-row{ width:100%; display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; z-index:1; }
+  .back-btn{ width:25px; height:25px; border-radius:7px; border:1.5px solid var(--grey-dim); display:flex; align-items:center; justify-content:center; color:#ccc; font-size:13px; background:none; cursor:pointer; }
+  .page-pill{ font-size:8.5px; letter-spacing:1.3px; color:var(--amber); border-bottom:1px solid var(--amber-dim); padding-bottom:2px; }
+
+  .brand{ font-size:15px; font-weight:800; letter-spacing:3px; color:#eaeaea; z-index:1; margin-top:2px; }
+  .range-title{ font-size:10.5px; letter-spacing:1.8px; color:var(--amber); margin:3px 0 8px; display:flex; align-items:center; gap:7px; z-index:1; }
+  .range-title::before, .range-title::after{ content:"\25CE"; font-size:9.5px; opacity:0.8; }
+
+  .box{ width:100%; border-radius:10px; border:1.5px solid var(--grey-dim); padding:8px; margin-bottom:7px; z-index:1; }
+  .box-title{ font-size:9.5px; letter-spacing:1.1px; font-weight:700; margin-bottom:6px; color:var(--amber); }
+
+  .match-line{ font-size:11px; color:#eaeaea; text-align:center; padding:4px 0; }
+  .match-line b{ color:var(--amber); }
+
+  .result-row{
+    display:flex; align-items:center; justify-content:space-between;
+    background:#0a0a0a; border-radius:8px; padding:11px 13px; margin-bottom:6px;
+  }
+  .result-row:last-child{ margin-bottom:0; }
+  .result-label{ font-size:11.5px; color:#ddd; }
+  .result-pct{ font-size:15px; font-weight:800; color:var(--amber); letter-spacing:0.3px; }
+
+  .group-label{ font-size:9px; letter-spacing:1.2px; color:#777; margin:10px 0 5px; padding-left:2px; }
+  .group-label:first-child{ margin-top:0; }
+
+  .bottom-nav{ position:fixed; bottom:0; left:0; right:0; background:#000; border-top:1px solid #1c1c1c; display:flex; justify-content:center; z-index:999; }
+  .bottom-nav-inner{ width:100%; max-width:420px; display:flex; justify-content:space-around; padding:7px 0 9px; }
+  .nav-item{ display:flex; flex-direction:column; align-items:center; gap:3px; font-size:8.5px; color:#666; letter-spacing:0.7px; cursor:pointer; background:none; border:none; font-family:inherit; }
+  .nav-item.active{ color:var(--amber); }
+  .nav-icon{ font-size:13px; }
+</style>
+</head>
+<body>
+<div class="screen">
+
+  <div class="top-row">
+    <button class="back-btn" onclick="history.back()">&#8592;</button>
+    <div class="page-pill">PAGE 4 OF 4</div>
+  </div>
+
+  <div class="brand">BABAYAGA</div>
+  <div class="range-title">RESULTS</div>
+
+  <div class="box">
+    <div id="matchLine" class="match-line">Loading...</div>
+  </div>
+
+  <div class="box" id="resultsBox" style="display:none;">
+    <div class="group-label">GOALS</div>
+    <div id="goalsRows"></div>
+
+    <div class="group-label">DOUBLE CHANCE</div>
+    <div id="dcRows"></div>
+
+    <div class="group-label">BTTS</div>
+    <div id="bttsRows"></div>
+  </div>
+
+  <div class="box" id="emptyBox" style="display:none;">
+    <div class="match-line" style="color:#ff5c5c;">No simulation found. Go back to Processing and run it first.</div>
+  </div>
+
+</div>
+
+<div class="bottom-nav">
+  <div class="bottom-nav-inner">
+    <button class="nav-item" onclick="goTo('page1.html')"><span class="nav-icon">&#8962;</span>HOME</button>
+    <button class="nav-item" onclick="goTo('page2.html')"><span class="nav-icon">&#8982;</span>RANGE</button>
+    <button class="nav-item" onclick="goTo('page3.html')"><span class="nav-icon">&#9881;</span>PROCESSING</button>
+    <button class="nav-item active" onclick="goTo('page4.html')"><span class="nav-icon">&#128202;</span>RESULTS</button>
+  </div>
+</div>
+
+<script>
+  function goTo(page){ window.location.href = page; }
+
+  // Pure display page. All computation already happened on page3
+  // (exact Poisson grid + Monte Carlo, stored as simulationResult).
+  // Final shown percentage = average of the two methods — they already
+  // converge almost exactly, so this is a clean single "backend" number
+  // rather than a UI decision. No badges, no raw data, just the list.
+  function blend(a, b){ return (a + b) / 2; }
+  function pct(x){ return (x*100).toFixed(1) + '%'; }
+
+  function row(label, value){
+    return `<div class="result-row"><span class="result-label">${label}</span><span class="result-pct">${pct(value)}</span></div>`;
+  }
+
+  (function init(){
+    const raw = localStorage.getItem('simulationResult');
+    if(!raw){
+      document.getElementById('emptyBox').style.display = '';
+      document.getElementById('matchLine').textContent = 'No match loaded.';
+      return;
+    }
+    const { matchInfo, exact, mc } = JSON.parse(raw);
+
+    document.getElementById('matchLine').innerHTML =
+      `<b>${matchInfo.homeTeam}</b> vs <b>${matchInfo.awayTeam}</b>`;
+
+    document.getElementById('goalsRows').innerHTML =
+      row('Over 1.5', blend(exact.pOver15, mc.pOver15)) +
+      row('Over 2.5', blend(exact.pOver25, mc.pOver25)) +
+      row('Over 3.5', blend(exact.pOver35, mc.pOver35));
+
+    document.getElementById('dcRows').innerHTML =
+      row('1X (Home or Draw)', blend(exact.p1X, mc.p1X)) +
+      row('12 (Home or Away)', blend(exact.p12, mc.p12)) +
+      row('X2 (Draw or Away)', blend(exact.pX2, mc.pX2));
+
+    document.getElementById('bttsRows').innerHTML =
+      row('Yes', blend(exact.pBttsYes, mc.pBttsYes)) +
+      row('No', blend(exact.pBttsNo, mc.pBttsNo));
+
+    document.getElementById('resultsBox').style.display = '';
+  })();
+</script>
+</body>
+</html>
