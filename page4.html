@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>BABAYEGA — Predictions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Chakra+Petch:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --black:#050705; --panel:#0a100a; --panel-edge:#16241a;
+    --green:#39ff6b; --green-dim:#1f7a3f; --green-glow:rgba(57,255,107,0.35);
+    --text:#d9ffe4; --text-dim:#6f9c7e; --red:#ff4d4d;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body{
+    margin:0; min-height:100vh;
+    background:radial-gradient(ellipse at 50% -10%, rgba(57,255,107,0.10), transparent 55%), var(--black);
+    color:var(--text); font-family:'Chakra Petch', sans-serif;
+    display:flex; flex-direction:column; align-items:center; padding:0 0 60px;
+  }
+  header{ width:100%; display:flex; flex-direction:column; align-items:center; padding:28px 20px 10px; position:sticky; top:0; background:var(--black); z-index:10; }
+  .logo-btn{ background:none; border:none; padding:0; cursor:pointer; }
+  .logo{ width:min(46vw,160px); filter:drop-shadow(0 0 14px var(--green-glow)) drop-shadow(0 0 3px rgba(57,255,107,0.6)); display:block; }
+  .logo-btn:active .logo{ opacity:0.8; }
+  .page-tag{ margin-top:8px; font-family:'Rajdhani',sans-serif; font-weight:600; letter-spacing:0.35em; font-size:11px; color:var(--green-dim); }
+
+  main{ width:100%; max-width:520px; padding:18px 14px 0; }
+
+  .range-badge{
+    display:inline-flex; align-items:center; gap:8px;
+    border:1px solid var(--green-dim); border-radius:100px; padding:5px 13px;
+    font-family:'Rajdhani',sans-serif; font-weight:600; font-size:12px; color:var(--green);
+    margin-bottom:16px;
+  }
+
+  .match-card{
+    width:100%; background:var(--panel); border:1px solid var(--panel-edge); border-radius:8px;
+    padding:14px 16px; margin-bottom:12px;
+  }
+  .match-card.has-picks{ border-color:var(--green-dim); }
+
+  .match-title{
+    font-family:'Rajdhani',sans-serif; font-weight:700; font-size:16px; color:#eafff0;
+    display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;
+  }
+  .match-tab{ font-size:10px; color:var(--text-dim); letter-spacing:0.1em; margin-bottom:10px; }
+
+  .pick-row{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:8px 0; border-top:1px solid rgba(255,255,255,0.05);
+  }
+  .pick-row:first-of-type{ border-top:1px solid rgba(255,255,255,0.08); margin-top:4px; }
+
+  .pick-rank{
+    font-family:'Rajdhani',sans-serif; font-weight:700; font-size:12px; color:var(--black);
+    background:var(--green); width:18px; height:18px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-right:10px;
+  }
+  .pick-rank.r2{ background:var(--green-dim); color:#eafff0; }
+  .pick-rank.r3{ background:transparent; border:1px solid var(--green-dim); color:var(--green-dim); }
+
+  .pick-main{ display:flex; align-items:center; flex:1; min-width:0; }
+  .pick-label{ font-size:13.5px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pick-market{ font-size:10.5px; color:var(--text-dim); margin-top:1px; }
+
+  .pick-stats{ text-align:right; flex-shrink:0; margin-left:10px; }
+  .pick-odds{ font-family:'Rajdhani',sans-serif; font-weight:700; font-size:15px; color:var(--green); }
+  .pick-conf{ font-size:10.5px; color:var(--text-dim); }
+
+  .no-picks{ font-size:12.5px; color:var(--text-dim); font-style:italic; padding:6px 0; }
+
+  .empty-state{
+    text-align:center; padding:60px 20px; color:var(--text-dim); font-size:14px; line-height:1.6;
+  }
+  .empty-state a{ color:var(--green); }
+
+  .footer-note{
+    text-align:center; font-size:11px; color:var(--text-dim); margin-top:20px; line-height:1.6;
+  }
+  .footer-note a{ color:var(--green-dim); }
+</style>
+</head>
+<body>
+
+<header>
+  <button class="logo-btn" id="logoBtn" aria-label="Back to home">
+    <img class="logo" src="logo-babayega.png" alt="BABAYEGA">
+  </button>
+  <div class="page-tag">PAGE 4 — PREDICTIONS</div>
+</header>
+
+<main id="main">
+  <!-- populated by script -->
+</main>
+
+<script>
+(function(){
+  const logoBtn = document.getElementById('logoBtn');
+  const main = document.getElementById('main');
+  logoBtn.addEventListener('click', () => { window.location.href = 'page1.html'; });
+
+  const raw = localStorage.getItem('babayegaSimResults');
+  if (!raw){
+    main.innerHTML = `<div class="empty-state">No predictions yet.<br><a href="page3.html">Run the engine first →</a></div>`;
+    return;
+  }
+
+  let data;
+  try{ data = JSON.parse(raw); }catch(e){
+    main.innerHTML = `<div class="empty-state">Stored predictions are corrupted.<br><a href="page3.html">Re-run the engine →</a></div>`;
+    return;
+  }
+
+  const { range, results } = data;
+  const badge = document.createElement('div');
+  badge.className = 'range-badge';
+  badge.textContent = `ODDS RANGE ${(range.ranges||[]).map(r=>`${r.min}–${r.max}`).join(', ')}`;
+  main.appendChild(badge);
+
+  results.forEach(r => {
+    const card = document.createElement('div');
+    card.className = 'match-card' + (r.top3.length ? ' has-picks' : '');
+
+    const title = document.createElement('div');
+    title.className = 'match-title';
+    title.innerHTML = `<span>${r.homeTeam} vs ${r.awayTeam}</span>`;
+    card.appendChild(title);
+
+    const tab = document.createElement('div');
+    tab.className = 'match-tab';
+    tab.textContent = r.tab || '';
+    card.appendChild(tab);
+
+    if (!r.top3.length){
+      const none = document.createElement('div');
+      none.className = 'no-picks';
+      none.textContent = 'No picks in range';
+      card.appendChild(none);
+    } else {
+      r.top3.forEach((pick, idx) => {
+        const row = document.createElement('div');
+        row.className = 'pick-row';
+        const rankClass = idx === 0 ? '' : (idx === 1 ? 'r2' : 'r3');
+        row.innerHTML = `
+          <div class="pick-main">
+            <div class="pick-rank ${rankClass}">${idx+1}</div>
+            <div>
+              <div class="pick-label">${pick.label}</div>
+              <div class="pick-market">${pick.market}</div>
+            </div>
+          </div>
+          <div class="pick-stats">
+            <div class="pick-odds">${pick.odds.toFixed(2)}</div>
+            <div class="pick-conf">${(pick.simProb*100).toFixed(0)}% sim</div>
+          </div>
+        `;
+        card.appendChild(row);
+      });
+    }
+
+    main.appendChild(card);
+  });
+
+  const footer = document.createElement('div');
+  footer.className = 'footer-note';
+  footer.innerHTML = `${results.length} matches · <a href="page2.html">change odds range</a> · <a href="page1.html">load new matches</a>`;
+  main.appendChild(footer);
+})();
+</script>
+
+</body>
+</html>

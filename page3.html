@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>BABAYEGA — Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Chakra+Petch:wght@400;500;600&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --black:#050705; --panel:#0a100a; --panel-edge:#16241a;
+    --green:#39ff6b; --green-dim:#1f7a3f; --green-glow:rgba(57,255,107,0.35);
+    --text:#d9ffe4; --text-dim:#6f9c7e; --red:#ff4d4d; --amber:#ffb020;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body{
+    margin:0; min-height:100vh;
+    background:radial-gradient(ellipse at 50% -10%, rgba(57,255,107,0.10), transparent 55%), var(--black);
+    color:var(--text); font-family:'Chakra Petch', sans-serif;
+    display:flex; flex-direction:column; align-items:center; padding:0 0 48px;
+  }
+  header{ width:100%; display:flex; flex-direction:column; align-items:center; padding:28px 20px 10px; }
+  .logo-btn{ background:none; border:none; padding:0; cursor:pointer; }
+  .logo{ width:min(58vw,220px); filter:drop-shadow(0 0 18px var(--green-glow)) drop-shadow(0 0 3px rgba(57,255,107,0.6)); display:block; }
+  .logo-btn:active .logo{ opacity:0.8; }
+  .page-tag{ margin-top:10px; font-family:'Rajdhani',sans-serif; font-weight:600; letter-spacing:0.35em; font-size:11px; color:var(--green-dim); }
+  main{ width:100%; max-width:480px; padding:24px 18px 0; display:flex; flex-direction:column; align-items:center; }
+  .rule{ height:1px; width:100%; margin:18px 0 26px; background:linear-gradient(90deg,transparent,var(--green-dim),transparent); }
+  h1{ font-family:'Rajdhani',sans-serif; font-weight:700; font-size:22px; margin:0 0 6px; color:#eafff0; align-self:flex-start; }
+  .sub{ font-size:14px; color:var(--text-dim); line-height:1.5; margin:0 0 26px; align-self:flex-start; }
+
+  .range-badge{
+    align-self:flex-start; display:inline-flex; align-items:center; gap:8px;
+    border:1px solid var(--green-dim); border-radius:100px; padding:6px 14px;
+    font-family:'Rajdhani',sans-serif; font-weight:600; font-size:13px; color:var(--green);
+    margin-bottom:24px;
+  }
+
+  .console{
+    width:100%; background:var(--panel); border:1px solid var(--panel-edge); border-radius:6px;
+    padding:16px; min-height:180px; max-height:320px; overflow-y:auto;
+    font-family:'Roboto Mono', monospace; font-size:12px; line-height:1.7; color:var(--text-dim);
+  }
+  .console .ok{ color:var(--green); }
+  .console .skip{ color:var(--text-dim); }
+  .console .warn{ color:var(--amber); }
+
+  .progress-wrap{ width:100%; margin-top:16px; }
+  .progress-track{ width:100%; height:6px; background:var(--panel-edge); border-radius:100px; overflow:hidden; }
+  .progress-fill{ height:100%; width:0%; background:var(--green); box-shadow:0 0 10px var(--green-glow); transition:width .15s ease; }
+  .progress-label{ margin-top:8px; font-size:12px; color:var(--text-dim); text-align:right; }
+
+  .view-btn{
+    width:100%; margin-top:26px; background:transparent; color:var(--green);
+    border:1.5px solid var(--green); border-radius:100px; font-family:'Rajdhani',sans-serif;
+    font-weight:700; font-size:18px; letter-spacing:0.08em; padding:16px; cursor:pointer;
+    box-shadow:0 0 18px var(--green-glow); display:none;
+  }
+  .view-btn.show{ display:block; }
+  .view-btn:active{ background:rgba(57,255,107,0.1); }
+
+  .error-box{
+    width:100%; border:1px solid #5a1f1f; background:var(--panel); border-radius:6px;
+    padding:16px; color:var(--red); font-size:13px; display:none;
+  }
+  .error-box.show{ display:block; }
+  .error-box a{ color:var(--green); }
+</style>
+</head>
+<body>
+
+<header>
+  <button class="logo-btn" id="logoBtn" aria-label="Back to home">
+    <img class="logo" src="logo-babayega.png" alt="BABAYEGA">
+  </button>
+  <div class="page-tag">PAGE 3 — ENGINE</div>
+</header>
+
+<main>
+  <div class="rule"></div>
+  <h1>Running the engine</h1>
+  <p class="sub">Reconstructing each match's scoring distribution and simulating outcomes.</p>
+
+  <div class="range-badge" id="rangeBadge">ODDS RANGE —</div>
+
+  <div class="error-box" id="errorBox"></div>
+
+  <div id="runArea" style="width:100%;">
+    <div class="console" id="console"></div>
+    <div class="progress-wrap">
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="progress-label" id="progressLabel">0 / 0</div>
+    </div>
+  </div>
+
+  <button class="view-btn" id="viewBtn">View predictions →</button>
+</main>
+
+<script>
+/* ============================================================
+   BABAYEGA v2 ENGINE (embedded — probit ladder reconstruction +
+   correlated Monte Carlo, validated against 21 real matches)
+   ============================================================ */
+function safeNumber(value){ const n = Number(value); return Number.isFinite(n) ? n : null; }
+function clamp(value, min=0, max=1){ return Math.max(min, Math.min(max, value)); }
+function impliedProbability(odds){ odds = safeNumber(odds); if (!odds || odds <= 1) return null; return 1/odds; }
+function devigTwoWay(oddsA, oddsB){
+  const pA = impliedProbability(oddsA), pB = impliedProbability(oddsB);
+  if (pA === null || pB === null) return { probabilityA:null, probabilityB:null, overround:null };
+  const total = pA + pB;
+  return { probabilityA: pA/total, probabilityB: pB/total, overround: total-1 };
+}
+function erf(x){
+  const sign = x<0?-1:1; x = Math.abs(x);
+  const a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
+  const t = 1/(1+p*x);
+  const y = 1 - (((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
+  return sign*y;
+}
+function probit(p){
+  p = clamp(p, 1e-12, 1-1e-12);
+  const a=[-3.969683028665376e+01,2.209460984245205e+02,-2.759285104469687e+02,1.383577518672690e+02,-3.066479806614716e+01,2.506628277459239e+00];
+  const b=[-5.447609879822406e+01,1.615858368580409e+02,-1.556989798598866e+02,6.680131188771972e+01,-1.328068155288572e+01];
+  const c=[-7.784894002430293e-03,-3.223964580411365e-01,-2.400758277161838e+00,-2.549732539343734e+00,4.374664141464968e+00,2.938163982698783e+00];
+  const d=[7.784695709041462e-03,3.224671290700398e-01,2.445134137142996e+00,3.754408661907416e+00];
+  const pLow=0.02425, pHigh=1-pLow; let q,r;
+  if (p<pLow){ q=Math.sqrt(-2*Math.log(p)); return (((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5])/((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1); }
+  else if (p<=pHigh){ q=p-0.5; r=q*q; return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q/(((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1); }
+  else { q=Math.sqrt(-2*Math.log(1-p)); return -(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5])/((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1); }
+}
+function sampleCorrelatedStandardNormals(rho, rng=Math.random){
+  const box=()=>{ let u1=0,u2=0; while(u1===0)u1=rng(); while(u2===0)u2=rng(); return Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2); };
+  const z1=box(), zIndependent=box();
+  const z2 = rho*z1 + Math.sqrt(Math.max(0,1-rho*rho))*zIndependent;
+  return [z1,z2];
+}
+function linearRegression(x,y){
+  if (!Array.isArray(x)||!Array.isArray(y)||x.length!==y.length||x.length<2) return null;
+  const n=x.length, meanX=x.reduce((a,b)=>a+b,0)/n, meanY=y.reduce((a,b)=>a+b,0)/n;
+  let numerator=0, denominator=0;
+  for (let i=0;i<n;i++){ numerator += (x[i]-meanX)*(y[i]-meanY); denominator += Math.pow(x[i]-meanX,2); }
+  if (denominator===0) return null;
+  const slope=numerator/denominator, intercept=meanY-slope*meanX;
+  const predictions = x.map(v=>intercept+slope*v);
+  const ssTot = y.reduce((s,v)=>s+Math.pow(v-meanY,2),0);
+  const ssRes = y.reduce((s,v,i)=>s+Math.pow(v-predictions[i],2),0);
+  const r2 = ssTot===0?1:1-ssRes/ssTot;
+  return { slope, intercept, r2, predictions };
+}
+function reconstructNormalFromLadder(ladder){
+  if (!Array.isArray(ladder)) return null;
+  const valid = ladder.map(row=>{
+    const line=safeNumber(row.line), overOdds=safeNumber(row.overOdds), underOdds=safeNumber(row.underOdds);
+    if (line===null||overOdds===null||underOdds===null) return null;
+    const dv = devigTwoWay(overOdds, underOdds);
+    if (dv.probabilityA===null) return null;
+    return { line, overProbability:dv.probabilityA, z:probit(1-dv.probabilityA) };
+  }).filter(Boolean);
+  if (valid.length<3) return { sufficientData:false, validPoints:valid.length };
+  const x=valid.map(v=>v.line), y=valid.map(v=>v.z);
+  const reg = linearRegression(x,y);
+  if (!reg||reg.slope===0) return { sufficientData:false, validPoints:valid.length };
+  const sigma=1/reg.slope, mu=-reg.intercept*sigma;
+  return { sufficientData:true, validPoints:valid.length, mu, sigma:Math.abs(sigma), r2:reg.r2, points:valid };
+}
+function reconstructMarginFromHandicapLadder(ladder){
+  if (!Array.isArray(ladder)) return null;
+  const valid = ladder.map(row=>{
+    const homeLine=safeNumber(row.homeLine), homeOdds=safeNumber(row.homeOdds), awayOdds=safeNumber(row.awayOdds);
+    if (homeLine===null||homeOdds===null||awayOdds===null) return null;
+    const dv = devigTwoWay(homeOdds, awayOdds);
+    if (dv.probabilityA===null) return null;
+    const threshold = -homeLine;
+    return { threshold, homeCoverProbability:dv.probabilityA, z:probit(1-dv.probabilityA) };
+  }).filter(Boolean);
+  if (valid.length<3) return { sufficientData:false, validPoints:valid.length };
+  const x=valid.map(v=>v.threshold), y=valid.map(v=>v.z);
+  const reg = linearRegression(x,y);
+  if (!reg||reg.slope===0) return { sufficientData:false, validPoints:valid.length };
+  const sigma=1/reg.slope, mu=-reg.intercept*sigma;
+  return { sufficientData:true, validPoints:valid.length, mu, sigma:Math.abs(sigma), r2:reg.r2 };
+}
+const DEFAULT_TOTAL_MARGIN_CORRELATION = -0.03;
+function reconstructMatchDistribution(matchData){
+  const { homeML, awayML, fullTotalLadder, homeTeamLadder, awayTeamLadder, handicapLadder } = matchData;
+  const moneylineDevig = devigTwoWay(homeML, awayML);
+  const totalDist = fullTotalLadder ? reconstructNormalFromLadder(fullTotalLadder) : null;
+  const homeDist = homeTeamLadder ? reconstructNormalFromLadder(homeTeamLadder) : null;
+  const awayDist = awayTeamLadder ? reconstructNormalFromLadder(awayTeamLadder) : null;
+  const marginDist = handicapLadder ? reconstructMarginFromHandicapLadder(handicapLadder) : null;
+  return { moneylineDevig, totalDist, homeDist, awayDist, marginDist };
+}
+function runMonteCarlo(reconstruction, numSims=8000, rng=Math.random, correlation=DEFAULT_TOTAL_MARGIN_CORRELATION){
+  const { totalDist, marginDist, homeDist, awayDist } = reconstruction;
+  const muTotal = totalDist?.sufficientData ? totalDist.mu : (homeDist?.sufficientData && awayDist?.sufficientData ? homeDist.mu+awayDist.mu : null);
+  const sigmaTotal = totalDist?.sufficientData ? totalDist.sigma : (homeDist?.sufficientData && awayDist?.sufficientData ? Math.sqrt(homeDist.sigma**2+awayDist.sigma**2) : null);
+  const muMargin = marginDist?.sufficientData ? marginDist.mu : (homeDist?.sufficientData && awayDist?.sufficientData ? homeDist.mu-awayDist.mu : null);
+  const sigmaMargin = marginDist?.sufficientData ? marginDist.sigma : (homeDist?.sufficientData && awayDist?.sufficientData ? Math.sqrt(homeDist.sigma**2+awayDist.sigma**2) : null);
+  if (muTotal===null||sigmaTotal===null||muMargin===null||sigmaMargin===null) return { sufficientData:false };
+  const outcomes = [];
+  for (let i=0;i<numSims;i++){
+    const [z1,z2] = sampleCorrelatedStandardNormals(correlation, rng);
+    const total = muTotal + sigmaTotal*z1;
+    const margin = muMargin + sigmaMargin*z2;
+    outcomes.push({ home: Math.round((total+margin)/2), away: Math.round((total-margin)/2) });
+  }
+  const homeWins = outcomes.filter(o=>o.home>o.away).length;
+  return { sufficientData:true, numSims, simulatedHomeWinProbability: homeWins/numSims, simulatedAwayWinProbability: 1-homeWins/numSims, outcomes };
+}
+function simProbForLine(outcomes, valueFn, line, direction='over'){
+  const n = outcomes.length;
+  const hits = outcomes.filter(o=>{ const v=valueFn(o); return direction==='over' ? v>line : v<line; }).length;
+  return hits/n;
+}
+
+/* ============================================================
+   ADAPTER — scraper JSON market format -> engine matchData
+   ============================================================ */
+function adaptMatch(rawMatch){
+  const markets = {};
+  (rawMatch.markets||[]).forEach(mk => { markets[mk.marketName] = mk.values; });
+
+  let homeML=null, awayML=null;
+  const winner = markets['Winner (incl. overtime)'];
+  if (winner && winner.type==='simple'){
+    (winner.outcomes||[]).forEach(o=>{
+      if (o.label==='Home') homeML = parseFloat(o.odds);
+      if (o.label==='Away') awayML = parseFloat(o.odds);
+    });
+  }
+
+  function ladderFromRows(values){
+    if (!values || values.type!=='ladder' || !Array.isArray(values.rows)) return null;
+    const rows = values.rows.map(r=>({
+      line: parseFloat(r[0][0]), overOdds: parseFloat(r[1][0]), underOdds: parseFloat(r[2][0])
+    })).filter(r=>Number.isFinite(r.line)&&Number.isFinite(r.overOdds)&&Number.isFinite(r.underOdds));
+    return rows.length ? rows : null;
+  }
+  function handicapFromRows(values){
+    if (!values || values.type!=='ladder' || !Array.isArray(values.rows)) return null;
+    const rows = values.rows.map(r=>({
+      homeLine: parseFloat(r[0][0]), homeOdds: parseFloat(r[0][1]),
+      awayLine: parseFloat(r[1][0]), awayOdds: parseFloat(r[1][1])
+    })).filter(r=>Number.isFinite(r.homeLine)&&Number.isFinite(r.homeOdds));
+    return rows.length ? rows : null;
+  }
+
+  return {
+    homeTeam: rawMatch.homeTeam, awayTeam: rawMatch.awayTeam, tab: rawMatch.tab,
+    homeML, awayML,
+    fullTotalLadder: ladderFromRows(markets['Over/Under (incl. overtime)']),
+    homeTeamLadder: ladderFromRows(markets['Home Team Total (incl. overtime)']),
+    awayTeamLadder: ladderFromRows(markets['Away Team Total (incl. overtime)']),
+    handicapLadder: handicapFromRows(markets['Handicap (incl. overtime)'])
+  };
+}
+
+/* ============================================================
+   CANDIDATE PICKS — market weights from the validated 21-match
+   backtest. Handicap is excluded entirely (28.6%, worse than
+   random). Moneyline gets highest weight (86.7% in 1.30-1.80).
+   ============================================================ */
+const MARKET_WEIGHT = { moneyline: 1.0, homeTeamTotal: 0.6, awayTeamTotal: 0.45, fullTotal: 0.4 };
+
+function buildCandidates(match, recon, mc, range){
+  const candidates = [];
+  if (!mc.sufficientData) return candidates;
+
+  function inRange(odds){
+    if (!Number.isFinite(odds)) return false;
+    return (range.ranges || []).some(r => odds >= r.min && odds <= r.max);
+  }
+
+  // Moneyline
+  if (inRange(match.homeML)){
+    candidates.push({
+      label: `${match.homeTeam} to win`, market:'Moneyline', odds: match.homeML,
+      simProb: mc.simulatedHomeWinProbability, weight: MARKET_WEIGHT.moneyline
+    });
+  }
+  if (inRange(match.awayML)){
+    candidates.push({
+      label: `${match.awayTeam} to win`, market:'Moneyline', odds: match.awayML,
+      simProb: mc.simulatedAwayWinProbability, weight: MARKET_WEIGHT.moneyline
+    });
+  }
+
+  // Full total ladder
+  (match.fullTotalLadder||[]).forEach(row=>{
+    if (inRange(row.overOdds)){
+      const p = simProbForLine(mc.outcomes, o=>o.home+o.away, row.line, 'over');
+      candidates.push({ label:`Over ${row.line}`, market:'Full Total', odds:row.overOdds, simProb:p, weight:MARKET_WEIGHT.fullTotal });
+    }
+    if (inRange(row.underOdds)){
+      const p = simProbForLine(mc.outcomes, o=>o.home+o.away, row.line, 'under');
+      candidates.push({ label:`Under ${row.line}`, market:'Full Total', odds:row.underOdds, simProb:p, weight:MARKET_WEIGHT.fullTotal });
+    }
+  });
+
+  // Home team total ladder
+  (match.homeTeamLadder||[]).forEach(row=>{
+    if (inRange(row.overOdds)){
+      const p = simProbForLine(mc.outcomes, o=>o.home, row.line, 'over');
+      candidates.push({ label:`${match.homeTeam} Over ${row.line}`, market:'Home Team Total', odds:row.overOdds, simProb:p, weight:MARKET_WEIGHT.homeTeamTotal });
+    }
+    if (inRange(row.underOdds)){
+      const p = simProbForLine(mc.outcomes, o=>o.home, row.line, 'under');
+      candidates.push({ label:`${match.homeTeam} Under ${row.line}`, market:'Home Team Total', odds:row.underOdds, simProb:p, weight:MARKET_WEIGHT.homeTeamTotal });
+    }
+  });
+
+  // Away team total ladder
+  (match.awayTeamLadder||[]).forEach(row=>{
+    if (inRange(row.overOdds)){
+      const p = simProbForLine(mc.outcomes, o=>o.away, row.line, 'over');
+      candidates.push({ label:`${match.awayTeam} Over ${row.line}`, market:'Away Team Total', odds:row.overOdds, simProb:p, weight:MARKET_WEIGHT.awayTeamTotal });
+    }
+    if (inRange(row.underOdds)){
+      const p = simProbForLine(mc.outcomes, o=>o.away, row.line, 'under');
+      candidates.push({ label:`${match.awayTeam} Under ${row.line}`, market:'Away Team Total', odds:row.underOdds, simProb:p, weight:MARKET_WEIGHT.awayTeamTotal });
+    }
+  });
+
+  candidates.forEach(c => { c.score = c.simProb * c.weight; });
+  candidates.sort((a,b) => b.score - a.score);
+  return candidates.slice(0, 3);
+}
+
+/* ============================================================
+   PAGE WIRING
+   ============================================================ */
+(function(){
+  const logoBtn = document.getElementById('logoBtn');
+  const consoleEl = document.getElementById('console');
+  const progressFill = document.getElementById('progressFill');
+  const progressLabel = document.getElementById('progressLabel');
+  const viewBtn = document.getElementById('viewBtn');
+  const errorBox = document.getElementById('errorBox');
+  const rangeBadge = document.getElementById('rangeBadge');
+  const runArea = document.getElementById('runArea');
+
+  logoBtn.addEventListener('click', () => { window.location.href = 'page1.html'; });
+
+  function fail(msg){
+    errorBox.innerHTML = msg;
+    errorBox.classList.add('show');
+    runArea.style.display = 'none';
+  }
+
+  const matchesRaw = localStorage.getItem('babayegaBasketballMatches');
+  const rangeRaw = localStorage.getItem('babayegaOddsRange');
+
+  if (!matchesRaw){ fail(`No matches loaded yet. <a href="page1.html">Go to page 1 →</a>`); return; }
+  if (!rangeRaw){ fail(`No odds range set yet. <a href="page2.html">Go to page 2 →</a>`); return; }
+
+  let data, range;
+  try{ data = JSON.parse(matchesRaw); }catch(e){ fail(`Stored match data is corrupted. <a href="page1.html">Reload it →</a>`); return; }
+  try{ range = JSON.parse(rangeRaw); }catch(e){ fail(`Stored odds range is corrupted. <a href="page2.html">Reset it →</a>`); return; }
+
+  rangeBadge.textContent = `ODDS RANGE ${(range.ranges||[]).map(r=>`${r.min}–${r.max}`).join(', ')}`;
+
+  const matches = data.matches || [];
+  progressLabel.textContent = `0 / ${matches.length}`;
+
+  function logLine(text, cls){
+    const div = document.createElement('div');
+    if (cls) div.className = cls;
+    div.textContent = text;
+    consoleEl.appendChild(div);
+    consoleEl.scrollTop = consoleEl.scrollHeight;
+  }
+
+  const results = [];
+  let i = 0;
+
+  function step(){
+    if (i >= matches.length){
+      logLine(`— done. ${results.filter(r=>r.top3.length>0).length}/${matches.length} matches have picks in range —`, 'ok');
+      localStorage.setItem('babayegaSimResults', JSON.stringify({ range, generatedAt: new Date().toISOString(), results }));
+      viewBtn.classList.add('show');
+      return;
+    }
+
+    const raw = matches[i];
+    const match = adaptMatch(raw);
+    const recon = reconstructMatchDistribution(match);
+    const mc = runMonteCarlo(recon);
+    const top3 = buildCandidates(match, recon, mc, range);
+
+    results.push({ homeTeam: match.homeTeam, awayTeam: match.awayTeam, tab: match.tab, top3 });
+
+    const tag = `${match.homeTeam} vs ${match.awayTeam}`;
+    if (!mc.sufficientData) logLine(`${tag} — insufficient ladder data, skipped`, 'skip');
+    else if (top3.length === 0) logLine(`${tag} — no picks in range`, 'skip');
+    else logLine(`${tag} — ${top3.length} pick${top3.length>1?'s':''} found`, 'ok');
+
+    i++;
+    progressFill.style.width = `${(i/matches.length)*100}%`;
+    progressLabel.textContent = `${i} / ${matches.length}`;
+    setTimeout(step, 10);
+  }
+
+  step();
+
+  viewBtn.addEventListener('click', () => { window.location.href = 'page4.html'; });
+})();
+</script>
+
+</body>
+</html>
