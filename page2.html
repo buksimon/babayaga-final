@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>BABAYEGA — Odds Range</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Chakra+Petch:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --black: #050705;
+    --panel: #0a100a;
+    --panel-edge: #16241a;
+    --green: #39ff6b;
+    --green-dim: #1f7a3f;
+    --green-glow: rgba(57,255,107,0.35);
+    --text: #d9ffe4;
+    --text-dim: #6f9c7e;
+    --red: #ff4d4d;
+  }
+
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+  body{
+    margin:0;
+    min-height:100vh;
+    background:
+      radial-gradient(ellipse at 50% -10%, rgba(57,255,107,0.10), transparent 55%),
+      var(--black);
+    color:var(--text);
+    font-family:'Chakra Petch', sans-serif;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:0 0 48px;
+  }
+
+  header{
+    width:100%;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:28px 20px 10px;
+  }
+
+  .logo-btn{
+    background:none;
+    border:none;
+    padding:0;
+    cursor:pointer;
+  }
+  .logo{
+    width:min(58vw, 220px);
+    filter: drop-shadow(0 0 18px var(--green-glow)) drop-shadow(0 0 3px rgba(57,255,107,0.6));
+    display:block;
+  }
+  .logo-btn:active .logo{ opacity:0.8; }
+
+  .page-tag{
+    margin-top:10px;
+    font-family:'Rajdhani', sans-serif;
+    font-weight:600;
+    letter-spacing:0.35em;
+    font-size:11px;
+    color:var(--green-dim);
+  }
+
+  main{
+    width:100%;
+    max-width:480px;
+    padding:24px 18px 0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+  }
+
+  .rule{
+    height:1px;
+    width:100%;
+    margin:18px 0 30px;
+    background:linear-gradient(90deg, transparent, var(--green-dim), transparent);
+  }
+
+  h1{
+    font-family:'Rajdhani', sans-serif;
+    font-weight:700;
+    font-size:22px;
+    letter-spacing:0.02em;
+    margin:0 0 6px;
+    color:#eafff0;
+    align-self:flex-start;
+  }
+
+  .sub{
+    font-size:14px;
+    color:var(--text-dim);
+    line-height:1.5;
+    margin:0 0 40px;
+    align-self:flex-start;
+  }
+
+  /* multi-select odds-band pills: long breadth, curved edges, neon green ring */
+  .band-list{
+    width:100%;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+  .band-pill{
+    width:100%;
+    display:flex;
+    align-items:center;
+    gap:14px;
+    background:var(--panel);
+    border:1.5px solid var(--green-dim);
+    border-radius:100px;
+    padding:16px 22px;
+    cursor:pointer;
+    transition:border-color .15s ease, box-shadow .15s ease;
+  }
+  .band-pill.active{
+    border-color:var(--green);
+    box-shadow:0 0 20px var(--green-glow), inset 0 0 14px rgba(57,255,107,0.06);
+  }
+  .band-check{
+    width:20px; height:20px; border-radius:50%; flex-shrink:0;
+    border:1.5px solid var(--green-dim);
+    position:relative;
+  }
+  .band-pill.active .band-check{
+    border-color:var(--green);
+    background:var(--green);
+  }
+  .band-pill.active .band-check::after{
+    content:'';
+    position:absolute; left:6px; top:2px;
+    width:5px; height:10px;
+    border:solid #04120a;
+    border-width:0 2px 2px 0;
+    transform:rotate(45deg);
+  }
+  .band-range{
+    font-family:'Rajdhani', sans-serif;
+    font-weight:700;
+    font-size:19px;
+    color:var(--text-dim);
+  }
+  .band-pill.active .band-range{ color:var(--green); }
+
+  .select-all-btn{
+    align-self:flex-end;
+    background:none;
+    border:none;
+    color:var(--green-dim);
+    text-decoration:underline;
+    font-family:'Chakra Petch', sans-serif;
+    font-size:12px;
+    margin-top:10px;
+    cursor:pointer;
+    padding:0;
+  }
+
+  .hint-row{
+    width:100%;
+    display:flex;
+    justify-content:space-between;
+    margin-top:10px;
+    font-size:11px;
+    color:var(--text-dim);
+  }
+
+  .simulate-btn{
+    width:100%;
+    margin-top:44px;
+    background:transparent;
+    color:var(--green);
+    border:1.5px solid var(--green);
+    border-radius:100px;
+    font-family:'Rajdhani', sans-serif;
+    font-weight:700;
+    font-size:18px;
+    letter-spacing:0.08em;
+    padding:16px;
+    cursor:pointer;
+    box-shadow:0 0 18px var(--green-glow);
+  }
+  .simulate-btn:active{ background:rgba(57,255,107,0.1); }
+
+  .error{
+    margin-top:14px;
+    font-size:13px;
+    color:var(--red);
+    display:none;
+    align-self:flex-start;
+  }
+  .error.show{ display:block; }
+</style>
+</head>
+<body>
+
+<header>
+  <button class="logo-btn" id="logoBtn" aria-label="Back to home">
+    <img class="logo" src="logo-babayega.png" alt="BABAYEGA">
+  </button>
+  <div class="page-tag">PAGE 2 — ODDS RANGE</div>
+</header>
+
+<main>
+  <div class="rule"></div>
+
+  <h1>Set your odds range</h1>
+  <p class="sub">Only picks inside this range will be considered when the engine runs.</p>
+
+  <div class="band-list" id="bandList">
+    <button class="band-pill active" data-min="1.30" data-max="1.45">
+      <span class="band-check"></span>
+      <span class="band-range">1.30 – 1.45</span>
+    </button>
+    <button class="band-pill" data-min="1.46" data-max="1.60">
+      <span class="band-check"></span>
+      <span class="band-range">1.46 – 1.60</span>
+    </button>
+    <button class="band-pill" data-min="1.61" data-max="1.75">
+      <span class="band-check"></span>
+      <span class="band-range">1.61 – 1.75</span>
+    </button>
+  </div>
+
+  <button class="select-all-btn" id="selectAllBtn">Select all</button>
+
+  <div class="hint-row">
+    <span>locked floor 1.30</span>
+    <span id="rangeReadout">1.30 – 1.45</span>
+  </div>
+
+  <div class="error" id="error">Select at least one range.</div>
+
+  <button class="simulate-btn" id="simulateBtn">Simulate</button>
+</main>
+
+<script>
+(function(){
+  const LOCKED_FLOOR = 1.30;
+  const bandList   = document.getElementById('bandList');
+  const selectAllBtn = document.getElementById('selectAllBtn');
+  const readout    = document.getElementById('rangeReadout');
+  const presets    = document.getElementById('presets');
+  const errorBox   = document.getElementById('error');
+  const simulateBtn= document.getElementById('simulateBtn');
+  const logoBtn    = document.getElementById('logoBtn');
+
+  logoBtn.addEventListener('click', () => { window.location.href = 'page1.html'; });
+
+  function getSelectedBands(){
+    return [...bandList.querySelectorAll('.band-pill.active')].map(b => ({
+      min: parseFloat(b.dataset.min), max: parseFloat(b.dataset.max)
+    }));
+  }
+
+  function updateReadout(){
+    const bands = getSelectedBands();
+    readout.textContent = bands.length
+      ? bands.map(b => `${b.min.toFixed(2)} – ${b.max.toFixed(2)}`).join(', ')
+      : 'none selected';
+  }
+
+  bandList.addEventListener('click', e => {
+    const btn = e.target.closest('.band-pill');
+    if (!btn) return;
+    btn.classList.toggle('active');
+    updateReadout();
+    errorBox.classList.remove('show');
+  });
+
+  selectAllBtn.addEventListener('click', () => {
+    const bands = [...bandList.children];
+    const allActive = bands.every(b => b.classList.contains('active'));
+    bands.forEach(b => b.classList.toggle('active', !allActive));
+    selectAllBtn.textContent = allActive ? 'Select all' : 'Deselect all';
+    updateReadout();
+    errorBox.classList.remove('show');
+  });
+
+  simulateBtn.addEventListener('click', () => {
+    const bands = getSelectedBands();
+
+    if (bands.length === 0 || bands.some(b => b.min < LOCKED_FLOOR || b.max <= b.min)) {
+      errorBox.classList.add('show');
+      return;
+    }
+    errorBox.classList.remove('show');
+
+    localStorage.setItem('babayegaOddsRange', JSON.stringify({ ranges: bands }));
+    window.location.href = 'page3.html';
+  });
+
+  // Restore previously chosen bands, if any
+  const saved = localStorage.getItem('babayegaOddsRange');
+  if (saved) {
+    try{
+      const parsed = JSON.parse(saved);
+      const ranges = parsed.ranges || (parsed.min !== undefined ? [{ min: parsed.min, max: parsed.max }] : []);
+      [...bandList.children].forEach(b => {
+        const match = ranges.some(r => r.min === parseFloat(b.dataset.min) && r.max === parseFloat(b.dataset.max));
+        b.classList.toggle('active', match);
+      });
+      updateReadout();
+    }catch(e){ /* ignore */ }
+  }
+})();
+</script>
+
+</body>
+</html>
